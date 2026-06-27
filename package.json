@@ -1,7 +1,9 @@
 {
-  "name": "routine-guy",
+  "name": "relay",
   "version": "0.1.0",
   "private": true,
+  "description": "Build your class section's weekly schedule once — Relay posts tomorrow's classes to your Discord every night.",
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -31,7 +31,7 @@ async function assertOwnedSpace(spaceId: string): Promise<void> {
 // Returns the slot only if it belongs to the caller — with its space + weekday.
 async function ownedSlot(slotId: string) {
   const uid = await userId();
-  const slot = await prisma.routineSlot.findFirst({
+  const slot = await prisma.scheduleSlot.findFirst({
     where: { id: slotId, space: { ownerId: uid } },
     select: { id: true, spaceId: true, weekday: true },
   });
@@ -112,8 +112,8 @@ export async function placeSlot(
   });
   if (!course) throw new Error("Course not in this space");
 
-  await prisma.routineSlot.deleteMany({ where: { spaceId, weekday, startTime } });
-  const slot = await prisma.routineSlot.create({
+  await prisma.scheduleSlot.deleteMany({ where: { spaceId, weekday, startTime } });
+  const slot = await prisma.scheduleSlot.create({
     data: { spaceId, courseId, weekday, startTime, endTime },
   });
   touch(spaceId);
@@ -122,7 +122,7 @@ export async function placeSlot(
 
 export async function removeSlot(slotId: string): Promise<void> {
   const slot = await ownedSlot(slotId);
-  await prisma.routineSlot.delete({ where: { id: slot.id } });
+  await prisma.scheduleSlot.delete({ where: { id: slot.id } });
   touch(slot.spaceId);
 }
 
@@ -136,12 +136,12 @@ export async function setSlotTimes(
   if (slotIds.length === 0) return;
   if (!isHM(startTime) || !isHM(endTime)) throw new Error("Times must be HH:MM");
   const uid = await userId();
-  const result = await prisma.routineSlot.updateMany({
+  const result = await prisma.scheduleSlot.updateMany({
     where: { id: { in: slotIds }, space: { ownerId: uid } },
     data: { startTime, endTime },
   });
   // Revalidate via any owned slot's space.
-  const any = await prisma.routineSlot.findFirst({
+  const any = await prisma.scheduleSlot.findFirst({
     where: { id: { in: slotIds }, space: { ownerId: uid } },
     select: { spaceId: true },
   });
@@ -187,7 +187,7 @@ export async function clearThisWeek(slotId: string): Promise<void> {
 
 /* ---------------- temporary layer: one-off extras & day off --------------- */
 
-// EXTRA: a class that happens this week only and isn't in the routine. Keyed by
+// EXTRA: a class that happens this week only and isn't in the schedule. Keyed by
 // (space, date, startTime) so re-adding in the same cell replaces it.
 export async function addExtraThisWeek(
   spaceId: string,

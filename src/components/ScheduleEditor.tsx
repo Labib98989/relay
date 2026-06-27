@@ -1,7 +1,7 @@
 "use client";
 
-// The routine editor — the heart of the app. Two layers in one surface:
-//   • "Edit routine"  → the PERMANENT weekly grid  (Course + RoutineSlot)
+// The schedule editor — the heart of the app. Two layers in one surface:
+//   • "Edit schedule" → the PERMANENT weekly grid  (Course + ScheduleSlot)
 //   • "This week"     → TEMPORARY exceptions (Override): cancel, room change,
 //                       one-off EXTRA class, or a whole DAY_OFF.
 //
@@ -218,7 +218,7 @@ function demoSeed(): Seed {
 
 // --------------------------------- component -------------------------------
 
-export default function RoutineEditor({
+export default function ScheduleEditor({
   spaceName,
   meta,
   hour12: hour12Prop = true,
@@ -531,10 +531,10 @@ export default function RoutineEditor({
                 <button
                   key={m}
                   onClick={() => { setMode(m); setArmed(null); setSelected(null); setPicking(null); }}
-                  title={m === "edit" ? "Edit the permanent routine" : "Make temporary, this-week-only changes"}
+                  title={m === "edit" ? "Edit the permanent schedule" : "Make temporary, this-week-only changes"}
                   className={"rounded-xl px-3.5 py-2 transition-all sm:py-1.5 " + (active ? `${activeCls} shadow-sm` : "text-ink-soft hover:text-ink")}
                 >
-                  {m === "edit" ? "Edit routine" : "This week"}
+                  {m === "edit" ? "Edit schedule" : "This week"}
                 </button>
               );
             })}
@@ -934,7 +934,7 @@ function CellMenu({
       {mode === "edit" ? (
         <>
           <MenuItem onClick={onMove}>Move to another cell</MenuItem>
-          <MenuItem onClick={onRemove} danger>Remove from routine</MenuItem>
+          <MenuItem onClick={onRemove} danger>Remove from schedule</MenuItem>
         </>
       ) : (
         <MenuItem onClick={onCancel} danger>Cancel this week</MenuItem>
@@ -984,7 +984,7 @@ function ExtraPicker({
     <Popover anchor={anchor} onClose={onClose} width={224} padding="p-2.5">
       <div className="mb-1.5 font-mono text-[11px] font-semibold text-ink-faint">Add a one-off class</div>
       {courses.length === 0 ? (
-        <p className="text-xs text-ink-soft">No courses yet — add some in “Edit routine” first.</p>
+        <p className="text-xs text-ink-soft">No courses yet — add some in “Edit schedule” first.</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {courses.map((c) => (

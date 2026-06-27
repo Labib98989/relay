@@ -1,4 +1,4 @@
-# Running Routine Guy locally
+# Running Relay locally
 
 The app depends on services that must be running **before** `npm run dev` is useful.
 If any are down, the app fails in confusing ways (e.g. a Discord login that errors
@@ -19,7 +19,7 @@ out is usually just the database being unreachable).
    ```
    Verify it's running:
    ```
-   docker compose ps        # routine-guy-db-1 should be "Up"
+   docker compose ps        # the db container should be "Up"
    ```
    Data persists in a named Docker volume (`pgdata`), so your tables and rows
    survive restarts.

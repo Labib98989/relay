@@ -2,7 +2,7 @@ import type { Weekday, OverrideType } from "@/generated/prisma/enums";
 import { weekdayFromDate } from "@/lib/week";
 
 // The single source of truth for "what classes happen on date X" — the permanent
-// routine for that weekday with the date's overrides layered on top. Pure and
+// schedule for that weekday with the date's overrides layered on top. Pure and
 // data-only so it powers BOTH the dashboard preview and the nightly poster, and
 // is trivially unit-testable.
 
@@ -60,7 +60,7 @@ export function resolveDay(
 
   const items: ResolvedItem[] = [];
 
-  // 1) the permanent routine for this weekday, with per-slot overrides applied
+  // 1) the permanent schedule for this weekday, with per-slot overrides applied
   for (const s of slots) {
     if (s.weekday !== weekday) continue;
     const ovs = bySlot.get(s.id) ?? [];

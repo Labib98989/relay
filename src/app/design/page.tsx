@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Brand from "@/components/Brand";
-import RoutineEditor from "@/components/RoutineEditor";
+import ScheduleEditor from "@/components/ScheduleEditor";
 
-// Public sandbox for the routine editor — same component the real space page
+// Public sandbox for the schedule editor — same component the real space page
 // uses, seeded with sample data so anyone can feel the interaction loop without
 // signing in. Linked from the landing page's "Try the editor".
 export default function DesignSandbox() {
@@ -17,7 +17,7 @@ export default function DesignSandbox() {
           ← back home
         </Link>
       </div>
-      <RoutineEditor spaceName="CSE-A" meta="sandbox · Section 2 · sample data" />
+      <ScheduleEditor spaceName="CSE-A" meta="sandbox · Section 2 · sample data" />
     </div>
   );
 }

@@ -24,7 +24,7 @@ const mono = Spline_Sans_Mono({
 export const metadata: Metadata = {
   title: "Relay — your class schedule, handled",
   description:
-    "Build your section's weekly routine once. Relay posts tomorrow's classes to your Discord every night — automatically.",
+    "Build your section's weekly schedule once. Relay posts tomorrow's classes to your Discord every night — automatically.",
 };
 
 export default function RootLayout({

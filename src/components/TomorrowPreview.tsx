@@ -2,7 +2,7 @@ import type { ResolvedDay } from "@/lib/resolve";
 import { formatTime } from "@/lib/time";
 
 // Read-only "this is what posts tonight" card. Server-rendered from the resolver
-// so the CR sees the permanent routine + this-week overrides exactly as the bot
+// so the CR sees the permanent schedule + this-week overrides exactly as the bot
 // will. Updates on the next render after any edit (server actions revalidate).
 export default function TomorrowPreview({
   resolved,
@@ -41,7 +41,7 @@ export default function TomorrowPreview({
         {resolved.dayOff ? (
           <Empty emoji="🌙" line="Day off — no classes tomorrow." sub="Relay will post a rest-day note." />
         ) : resolved.items.length === 0 ? (
-          <Empty emoji="🗓️" line="No classes scheduled for tomorrow." sub="Add some in Edit routine, or it'll post a free day." />
+          <Empty emoji="🗓️" line="No classes scheduled for tomorrow." sub="Add some in Edit schedule, or it'll post a free day." />
         ) : (
           <ul className="flex flex-col gap-2.5">
             {resolved.items.map((it, i) => (

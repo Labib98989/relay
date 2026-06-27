@@ -5,7 +5,7 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import TomorrowPreview from "@/components/TomorrowPreview";
 import PostingPanel from "@/components/PostingPanel";
-import RoutineEditor, { type EditorData, type EditorActions } from "@/components/RoutineEditor";
+import ScheduleEditor, { type EditorData, type EditorActions } from "@/components/ScheduleEditor";
 import type { ResolvedDay } from "@/lib/resolve";
 import type { DigestResult } from "@/lib/digest";
 import { formatTime } from "@/lib/time";
@@ -85,7 +85,7 @@ export default function SpaceWorkspace({
         />
       </div>
 
-      <RoutineEditor
+      <ScheduleEditor
         spaceName={spaceName}
         meta={meta}
         hour12={hour12}

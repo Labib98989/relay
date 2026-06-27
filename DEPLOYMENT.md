@@ -1,4 +1,4 @@
-# Deploying Routine Guy (Oracle VM, Docker Compose + Caddy)
+# Deploying Relay (Oracle VM, Docker Compose + Caddy)
 
 This is the production runbook. The whole stack — the app, Postgres, the TLS
 proxy, and the nightly scheduler — runs as one Docker Compose project defined in
@@ -81,7 +81,7 @@ dig +short relay.labibkarim.com    # should print the VM's public IP
 ## 5. Get the code and configure secrets
 
 ```
-git clone <your-repo-url> routine-guy && cd routine-guy
+git clone <your-repo-url> relay && cd relay
 cp .env.prod.example .env
 ```
 

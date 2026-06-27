@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Popover from "./Popover";
 import { formatTime, pad2, parseHM, toHM } from "@/lib/time";
 
-// A tap-to-open time control used everywhere a time is *edited* — the routine
+// A tap-to-open time control used everywhere a time is *edited* — the schedule
 // grid and the Settings "post time". Shows the value in the space's chosen
 // format (12h/24h) and edits it in a stylish wheel dropdown. It always
 // reads/writes canonical "HH:MM" 24h, so storage is identical either way, and

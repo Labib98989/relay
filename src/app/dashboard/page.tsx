@@ -71,7 +71,7 @@ export default async function Dashboard() {
               Your schedule spaces
             </h1>
             <p className="mt-1 text-ink-soft">
-              One space per class section — its routine and the channel it posts to.
+              One space per class section — its schedule and the channel it posts to.
             </p>
           </div>
           <SlotCounter used={spaces.length} max={MAX_SPACES_PER_USER} />
@@ -185,7 +185,7 @@ function EmptyState() {
         Let&apos;s set up your first section
       </h2>
       <p className="max-w-md text-ink-soft">
-        A space holds one section&apos;s weekly routine and the Discord channel it
+        A space holds one section&apos;s weekly schedule and the Discord channel it
         posts to. Name it below and Guy will help you build the timetable.
       </p>
       <span className="font-mono text-xs text-ink-faint">↓ create one to get started</span>

@@ -5,7 +5,7 @@ import { OverrideType } from "@/generated/prisma/enums";
 import { weekWindowUTC6, weekdayFromDate, tomorrowUTC6 } from "@/lib/week";
 import { resolveDay } from "@/lib/resolve";
 import { sanitizeLayout } from "@/lib/layout";
-import type { EditorData } from "@/components/RoutineEditor";
+import type { EditorData } from "@/components/ScheduleEditor";
 import SpaceWorkspace from "@/components/SpaceWorkspace";
 import {
   addCourse,
@@ -51,7 +51,7 @@ export default async function SpacePage({
   const { start, end } = weekWindowUTC6();
   const [courses, slots, overrides] = await Promise.all([
     prisma.course.findMany({ where: { spaceId }, orderBy: { name: "asc" } }),
-    prisma.routineSlot.findMany({ where: { spaceId } }),
+    prisma.scheduleSlot.findMany({ where: { spaceId } }),
     prisma.override.findMany({
       where: { spaceId, date: { gte: start, lte: end } },
     }),
@@ -92,12 +92,12 @@ export default async function SpacePage({
     }),
   };
 
-  // Resolve what the bot will post tomorrow (permanent routine + tomorrow's
+  // Resolve what the bot will post tomorrow (permanent schedule + tomorrow's
   // overrides) for the read-only preview.
   const tomorrow = tomorrowUTC6();
   const tomorrowWeekday = weekdayFromDate(tomorrow);
   const [tmrSlots, tmrOverrides] = await Promise.all([
-    prisma.routineSlot.findMany({
+    prisma.scheduleSlot.findMany({
       where: { spaceId, weekday: tomorrowWeekday },
       include: { course: true },
     }),

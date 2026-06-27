@@ -7,7 +7,7 @@
 # Only Caddy is exposed to the internet (80/443). Postgres has no published
 # port — nothing outside the compose network can reach it.
 
-name: routine-guy
+name: relay
 
 services:
   # PostgreSQL — internal only, persisted in a named volume.

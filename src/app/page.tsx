@@ -27,7 +27,7 @@ export default async function Home() {
             style={{ animationDelay: "40ms" }}
           >
             <span className="inline-block h-2 w-2 rounded-full bg-mint" />
-            never type out the routine again
+            never type out the schedule again
           </span>
 
           <h1
@@ -43,7 +43,7 @@ export default async function Home() {
             className="animate-rise mt-5 text-lg leading-8 text-ink-soft"
             style={{ animationDelay: "160ms" }}
           >
-            Lay out your section&apos;s weekly routine once — like snapping
+            Lay out your section&apos;s weekly schedule once — like snapping
             stickers onto a board. Cancel a class or move a room for{" "}
             <em className="text-ink">just this week</em> in a tap. Relay
             pings your Discord every night with what&apos;s on tomorrow.

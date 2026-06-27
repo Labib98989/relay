@@ -81,7 +81,7 @@ model ScheduleSpace {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   courses              Course[]
-  slots                RoutineSlot[]
+  slots                ScheduleSlot[]
   overrides            Override[]
   postLogs             PostLog[]
 }
@@ -96,7 +96,7 @@ model Course {
   color   String        @default("#5865F2")
   teacher String?
   room    String?
-  slots   RoutineSlot[]
+  slots   ScheduleSlot[]
   extras  Override[]
 }
 
@@ -113,7 +113,7 @@ enum Weekday {
 /// PERMANENT layer: one cell of the weekly grid.
 /// Times are zero-padded "HH:MM" 24h strings, so plain string comparison
 /// is also chronological comparison ("08:00" < "10:30").
-model RoutineSlot {
+model ScheduleSlot {
   id        String        @id @default(cuid())
   spaceId   String
   space     ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
@@ -125,6 +125,10 @@ model RoutineSlot {
   overrides Override[]
 
   @@index([spaceId, weekday])
+  // The physical table keeps its original name: renaming a populated table just
+  // to match the rebrand isn't worth a migration. The model + client are
+  // ScheduleSlot everywhere; only the DB table is still called "RoutineSlot".
+  @@map("RoutineSlot")
 }
 
 enum OverrideType {
@@ -132,13 +136,13 @@ enum OverrideType {
   CANCELLED
   /// This slot happens at a different time/room on this date. Targets `slot`.
   CHANGED
-  /// A one-off class on this date that isn't in the routine. Targets `course`.
+  /// A one-off class on this date that isn't in the schedule. Targets `course`.
   EXTRA
   /// The whole day is off; suppresses every slot. Targets nothing.
   DAY_OFF
 }
 
-/// TEMPORARY layer: a date-stamped exception applied on top of the routine.
+/// TEMPORARY layer: a date-stamped exception applied on top of the schedule.
 /// Which fields are meaningful depends on `type` (see enum docs); the rest
 /// stay null. Old rows become inert once their date passes — the permanent
 /// layer is never touched.
@@ -150,7 +154,7 @@ model Override {
   date      DateTime      @db.Date
   type      OverrideType
   slotId    String?
-  slot      RoutineSlot?  @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  slot      ScheduleSlot? @relation(fields: [slotId], references: [id], onDelete: Cascade)
   courseId  String?
   course    Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   startTime String?

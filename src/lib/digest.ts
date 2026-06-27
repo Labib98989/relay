@@ -50,7 +50,7 @@ export async function postDigestForSpace(
 
   const weekday = weekdayFromDate(forDate);
   const [slots, overrides] = await Promise.all([
-    prisma.routineSlot.findMany({ where: { spaceId, weekday }, include: { course: true } }),
+    prisma.scheduleSlot.findMany({ where: { spaceId, weekday }, include: { course: true } }),
     prisma.override.findMany({ where: { spaceId, date: forDate }, include: { course: true } }),
   ]);
   const resolved = resolveDay(forDate, slots, overrides);
