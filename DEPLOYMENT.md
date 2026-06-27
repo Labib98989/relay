@@ -75,7 +75,7 @@ Create an **A record** for your domain → the VM's **public IP**. Confirm it
 resolves before launching (Caddy can't get a certificate until it does):
 
 ```
-dig +short your-domain.example    # should print the VM's public IP
+dig +short relay.labibkarim.com    # should print the VM's public IP
 ```
 
 ## 5. Get the code and configure secrets
@@ -104,7 +104,7 @@ In the [Discord Developer Portal](https://discord.com/developers/applications) �
 your app → **OAuth2** → **Redirects**, add:
 
 ```
-https://your-domain.example/api/auth/callback/discord
+https://relay.labibkarim.com/api/auth/callback/discord
 ```
 
 Also confirm the **bot** (Bot tab token = `DISCORD_BOT_TOKEN`) is invited to the
@@ -134,7 +134,7 @@ Expect: `db` healthy, `migrate` exited (0), `web` / `caddy` / `cron` up.
 1. **Migrations applied** — `docker compose -f docker-compose.prod.yml logs migrate`
    shows the migrations running to completion.
 2. **Cert issued** — `... logs caddy` shows a certificate obtained for your domain.
-3. **Login** — open `https://your-domain.example` and sign in with Discord. A
+3. **Login** — open `https://relay.labibkarim.com` and sign in with Discord. A
    successful login proves OAuth callback + secure cookies + DB sessions all work.
 4. **Bot posting** — in the dashboard, connect a Discord channel, then click
    **"Post tomorrow now."** The digest should appear in the channel (proves the
@@ -177,7 +177,7 @@ docker compose -f docker-compose.prod.yml exec -T db \
   *both* the Oracle Security List and host `iptables` (step 2).
 - **Caddy can't get a certificate** → DNS isn't resolving to this VM yet, or port
   80 is blocked (Let's Encrypt validates over port 80). Check `dig +short
-  your-domain.example` and the firewall.
+  relay.labibkarim.com` and the firewall.
 - **Discord login bounces / "redirect URI mismatch"** → the redirect in the
   Discord portal must be *exactly* `https://$DOMAIN/api/auth/callback/discord`,
   and `AUTH_URL`/`DOMAIN` in `.env` must match the host you're visiting.
