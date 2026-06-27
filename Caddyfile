@@ -1,0 +1,17 @@
+# Caddy reverse proxy + automatic HTTPS.
+#
+# Caddy obtains and auto-renews a Let's Encrypt certificate for $DOMAIN, then
+# proxies to the Next.js container on its internal port. $DOMAIN and $ACME_EMAIL
+# are read from the environment (set in .env, passed through docker-compose).
+#
+# Caddy's reverse_proxy sets X-Forwarded-Proto/Host by default, which is what
+# Auth.js needs to build the correct https callback URL behind the proxy.
+
+{
+	# Optional but recommended: lets the CA contact you about the cert.
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	reverse_proxy web:3000
+}

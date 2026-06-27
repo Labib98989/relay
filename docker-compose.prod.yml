@@ -1,0 +1,99 @@
+# Production stack — bring the whole thing up on the VM with:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Secrets/config come from .env (copy .env.prod.example → .env and fill in).
+# Compose auto-loads that .env for ${VAR} interpolation below.
+#
+# Only Caddy is exposed to the internet (80/443). Postgres has no published
+# port — nothing outside the compose network can reach it.
+
+name: routine-guy
+
+services:
+  # PostgreSQL — internal only, persisted in a named volume.
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: routine
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: routineguy
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U routine -d routineguy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: apply pending migrations, then exit. `web` waits for this to
+  # succeed, so the app never starts against an un-migrated database.
+  migrate:
+    build:
+      context: .
+      target: migrator
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # The Next.js app (standalone server). Internal only — Caddy fronts it.
+  web:
+    build:
+      context: .
+      target: runner
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      # Behind the proxy, Auth.js needs the canonical public origin + to trust
+      # the forwarded host, or the Discord callback URL comes out wrong.
+      AUTH_URL: https://${DOMAIN:?set DOMAIN in .env}
+      AUTH_TRUST_HOST: "true"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  # TLS termination + reverse proxy. Auto-provisions a Let's Encrypt cert for
+  # $DOMAIN and renews it; caddy_data persists certs across restarts.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
+  # Self-contained scheduler: pings the nightly endpoint every 5 minutes over
+  # the internal network (the secret never leaves Docker). The route self-gates
+  # on each space's postTime and is idempotent, so frequent calls are safe.
+  cron:
+    image: curlimages/curl:latest
+    restart: unless-stopped
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          curl -fsS -X POST -H "Authorization: Bearer $$CRON_SECRET" http://web:3000/api/cron/post || echo "cron: post failed";
+          sleep 300;
+        done
+    depends_on:
+      - web
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

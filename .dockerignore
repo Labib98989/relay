@@ -1,0 +1,31 @@
+# Keep the build context lean and avoid leaking local state into the image.
+
+# Installed/built artifacts — recreated inside the build.
+node_modules
+.next
+out
+build
+src/generated
+
+# Secrets and local env — NEVER ship these into an image layer.
+.env
+.env.*
+!.env.example
+!.env.prod.example
+
+# VCS / local tooling
+.git
+.gitignore
+*.tsbuildinfo
+next-env.d.ts
+.vscode
+.idea
+
+# Docs and compose files not needed at runtime
+DEPLOYMENT.md
+DEVELOPMENT.md
+docker-compose.yml
+docker-compose.prod.yml
+Dockerfile
+.dockerignore
+Caddyfile
