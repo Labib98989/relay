@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth) models — required by the Prisma adapter.
+// These tables are owned by the auth library; our domain hangs off User.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String          @id @default(cuid())
+  name          String?
+  email         String?         @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  spaces        ScheduleSpace[]
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+/// One class section's schedule. A CR owns up to 5 (enforced in app code —
+/// a per-user row limit is not expressible as a DB constraint).
+model ScheduleSpace {
+  id                   String        @id @default(cuid())
+  name                 String
+  ownerId              String
+  owner                User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  /// Discord channel to post into; null until the CR connects one.
+  discordChannelId     String?
+  /// Local wall-clock time (UTC+6) to post tomorrow's digest, "HH:MM" 24h.
+  postTime             String        @default("20:00")
+  notificationsEnabled Boolean       @default(true)
+  /// Display preference: show times as 12-hour (8:00 AM) vs 24-hour (08:00).
+  /// Purely cosmetic — times are always STORED as "HH:MM" 24h.
+  hour12               Boolean       @default(true)
+  /// The editor scaffold the slots/overrides don't capture: time rows (incl.
+  /// breaks & empty periods) and which days are weekends. Shape: see
+  /// src/lib/layout.ts `Layout`. Null on legacy rows → editor derives it.
+  layout               Json?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  courses              Course[]
+  slots                RoutineSlot[]
+  overrides            Override[]
+  postLogs             PostLog[]
+}
+
+/// A course taught in a space — the reusable "chip" the CR places on the
+/// grid. Renaming it here updates every slot that references it.
+model Course {
+  id      String        @id @default(cuid())
+  spaceId String
+  space   ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  name    String
+  color   String        @default("#5865F2")
+  teacher String?
+  room    String?
+  slots   RoutineSlot[]
+  extras  Override[]
+}
+
+enum Weekday {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+/// PERMANENT layer: one cell of the weekly grid.
+/// Times are zero-padded "HH:MM" 24h strings, so plain string comparison
+/// is also chronological comparison ("08:00" < "10:30").
+model RoutineSlot {
+  id        String        @id @default(cuid())
+  spaceId   String
+  space     ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  weekday   Weekday
+  startTime String
+  endTime   String
+  overrides Override[]
+
+  @@index([spaceId, weekday])
+}
+
+enum OverrideType {
+  /// This slot doesn't happen on this date. Targets `slot`.
+  CANCELLED
+  /// This slot happens at a different time/room on this date. Targets `slot`.
+  CHANGED
+  /// A one-off class on this date that isn't in the routine. Targets `course`.
+  EXTRA
+  /// The whole day is off; suppresses every slot. Targets nothing.
+  DAY_OFF
+}
+
+/// TEMPORARY layer: a date-stamped exception applied on top of the routine.
+/// Which fields are meaningful depends on `type` (see enum docs); the rest
+/// stay null. Old rows become inert once their date passes — the permanent
+/// layer is never touched.
+model Override {
+  id        String        @id @default(cuid())
+  spaceId   String
+  space     ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  /// The local (UTC+6) calendar date this exception applies to.
+  date      DateTime      @db.Date
+  type      OverrideType
+  slotId    String?
+  slot      RoutineSlot?  @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  courseId  String?
+  course    Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  startTime String?
+  endTime   String?
+  room      String?
+  note      String?
+  createdAt DateTime      @default(now())
+
+  @@index([spaceId, date])
+}
+
+enum PostStatus {
+  SUCCESS
+  FAILED
+}
+
+/// One row per space per digest-date. The unique constraint is the bot's
+/// idempotency guard: a duplicate send attempt violates it instead of
+/// double-pinging the channel. Failed attempts upsert onto the same row.
+model PostLog {
+  id      String        @id @default(cuid())
+  spaceId String
+  space   ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  /// The date the digest was about (i.e. "tomorrow" at send time).
+  forDate DateTime      @db.Date
+  sentAt  DateTime      @default(now())
+  status  PostStatus
+  error   String?
+
+  @@unique([spaceId, forDate])
+}
