@@ -45,7 +45,7 @@ export default async function Home() {
           >
             Lay out your section&apos;s weekly routine once — like snapping
             stickers onto a board. Cancel a class or move a room for{" "}
-            <em className="text-ink">just this week</em> in a tap. Routine Guy
+            <em className="text-ink">just this week</em> in a tap. Relay
             pings your Discord every night with what&apos;s on tomorrow.
           </p>
 

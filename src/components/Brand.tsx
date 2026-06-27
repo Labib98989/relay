@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Mascot from "./Mascot";
 
-// The wordmark: tiny Guy + "Routine Guy" set in the display face. Links home by
+// The wordmark: the Guy mascot + "Relay" set in the display face. Links home by
 // default; pass `href={null}` for a non-interactive mark (e.g. inside a button).
 export default function Brand({
   href = "/",
@@ -17,8 +17,7 @@ export default function Brand({
     <span className="inline-flex items-center gap-2">
       <Mascot size={mascot} />
       <span className={`font-display font-extrabold tracking-tight ${text}`}>
-        <span className="text-ink">Routine</span>{" "}
-        <span className="text-brand">Guy</span>
+        <span className="text-ink">Relay</span>
       </span>
     </span>
   );

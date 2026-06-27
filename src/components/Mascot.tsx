@@ -1,4 +1,4 @@
-// "Guy" — the Routine Guy mascot. A friendly clipboard-creature, drawn in
+// "Guy" — Relay's mascot. A friendly clipboard-creature, drawn in
 // pure SVG and themed from CSS variables so it sits right in light and dark.
 // No client JS; safe to render anywhere. Add `animate-float` for a gentle bob.
 
@@ -14,7 +14,7 @@ export default function Mascot({
   size = 96,
   className,
   mood = "happy",
-  title = "Routine Guy",
+  title = "Relay",
 }: MascotProps) {
   const pupilY = mood === "wave" ? 49 : 52;
   return (

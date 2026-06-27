@@ -39,7 +39,7 @@ export default function TomorrowPreview({
 
       <div className="p-5">
         {resolved.dayOff ? (
-          <Empty emoji="🌙" line="Day off — no classes tomorrow." sub="Routine Guy will post a rest-day note." />
+          <Empty emoji="🌙" line="Day off — no classes tomorrow." sub="Relay will post a rest-day note." />
         ) : resolved.items.length === 0 ? (
           <Empty emoji="🗓️" line="No classes scheduled for tomorrow." sub="Add some in Edit routine, or it'll post a free day." />
         ) : (
