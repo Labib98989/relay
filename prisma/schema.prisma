@@ -21,6 +21,29 @@ model User {
   accounts      Account[]
   sessions      Session[]
   spaces        ScheduleSpace[]
+  apiTokens     ApiToken[]
+}
+
+/// A personal access token for external AI clients (Claude MCP connectors,
+/// ChatGPT Custom GPT Actions) to act as this user without a browser session.
+/// User-scoped — it covers all of the user's spaces, same as a dashboard
+/// session. Only a SHA-256 hash is stored; the plaintext is shown exactly once
+/// at creation. Revocation is a soft delete (revokedAt) to keep an audit trail.
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// sha256 hex digest of the plaintext token ("rly_..."). Never the plaintext.
+  tokenHash  String    @unique
+  /// Non-secret display prefix (e.g. "rly_a1b2c3") so tokens are tellable apart.
+  prefix     String
+  /// User-supplied label, e.g. "Claude Desktop".
+  name       String
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+
+  @@index([userId])
 }
 
 model Account {
@@ -84,6 +107,8 @@ model ScheduleSpace {
   slots                ScheduleSlot[]
   overrides            Override[]
   postLogs             PostLog[]
+  events               Event[]
+  channelRoutes        ChannelRoute[]
 }
 
 /// A course taught in a space — the reusable "chip" the CR places on the
@@ -98,6 +123,7 @@ model Course {
   room    String?
   slots   ScheduleSlot[]
   extras  Override[]
+  events  Event[]
 }
 
 enum Weekday {
@@ -164,6 +190,64 @@ model Override {
   createdAt DateTime      @default(now())
 
   @@index([spaceId, date])
+}
+
+/// The kind of a calendar Event. Two groups (Study / Non-study) — the grouping,
+/// display label, colour and emoji all live in src/lib/categories.ts, keyed by
+/// these stable enum values. Renaming a label there needs no migration.
+enum EventCategory {
+  // Study (academic)
+  EXAM
+  CLASS_TEST
+  QUIZ
+  ASSIGNMENT
+  PROJECT
+  PRESENTATION
+  LAB_REPORT
+  DEADLINE
+  // Non-study
+  NOTICE
+  MEETUP
+  PAYMENT
+  HOLIDAY
+  OTHER
+}
+
+/// A dated calendar entry (exam, assignment, notice, …) — independent of the
+/// weekly schedule. Unlike Override, an Event stands alone and isn't tied to a
+/// slot; it may optionally reference a Course. Dates follow the same UTC+6
+/// wall-clock @db.Date convention as Override.date.
+model Event {
+  id        String        @id @default(cuid())
+  spaceId   String
+  space     ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  title     String
+  date      DateTime      @db.Date
+  /// Optional "HH:MM" 24h band; both null = all-day.
+  startTime String?
+  endTime   String?
+  category  EventCategory
+  courseId  String?
+  course    Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  note      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([spaceId, date])
+}
+
+/// Flexible Discord posting routes for a space: key → channelId. `key` is either
+/// "DIGEST" (the nightly schedule post) or an EventCategory value (per-category
+/// event announcements). A missing key falls back to ScheduleSpace.discordChannelId
+/// (the "main" channel). One route per key per space.
+model ChannelRoute {
+  id        String        @id @default(cuid())
+  spaceId   String
+  space     ScheduleSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  key       String
+  channelId String
+
+  @@unique([spaceId, key])
 }
 
 enum PostStatus {

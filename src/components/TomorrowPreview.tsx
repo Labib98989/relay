@@ -1,5 +1,14 @@
 import type { ResolvedDay } from "@/lib/resolve";
 import { formatTime } from "@/lib/time";
+import { categoryMeta } from "@/lib/categories";
+import type { EventCategory } from "@/generated/prisma/enums";
+
+export type PreviewEvent = {
+  title: string;
+  category: EventCategory;
+  startTime: string | null;
+  endTime: string | null;
+};
 
 // Read-only "this is what posts tonight" card. Server-rendered from the resolver
 // so the CR sees the permanent schedule + this-week overrides exactly as the bot
@@ -10,12 +19,14 @@ export default function TomorrowPreview({
   postTime,
   connected,
   hour12,
+  events = [],
 }: {
   resolved: ResolvedDay;
   dateLabel: string;
   postTime: string;
   connected: boolean;
   hour12: boolean;
+  events?: PreviewEvent[];
 }) {
   return (
     <section className="panel overflow-hidden">
@@ -41,7 +52,7 @@ export default function TomorrowPreview({
         {resolved.dayOff ? (
           <Empty emoji="🌙" line="Day off — no classes tomorrow." sub="Relay will post a rest-day note." />
         ) : resolved.items.length === 0 ? (
-          <Empty emoji="🗓️" line="No classes scheduled for tomorrow." sub="Add some in Edit schedule, or it'll post a free day." />
+          <Empty emoji="🗓️" line="No classes scheduled for tomorrow." sub="Add some in Weekly routine, or it'll post a free day." />
         ) : (
           <ul className="flex flex-col gap-2.5">
             {resolved.items.map((it, i) => (
@@ -63,6 +74,26 @@ export default function TomorrowPreview({
               </li>
             ))}
           </ul>
+        )}
+
+        {events.length > 0 && (
+          <div className="mt-4 border-t border-line pt-3">
+            <div className="mb-2 font-mono text-[11px] uppercase tracking-wider text-ink-faint">📌 Events tomorrow</div>
+            <ul className="flex flex-col gap-1.5">
+              {events.map((e, i) => {
+                const meta = categoryMeta(e.category);
+                return (
+                  <li key={i} className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{e.title}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-ink-faint">
+                      {e.startTime ? formatTime(e.startTime, hour12) : meta.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         )}
       </div>
     </section>

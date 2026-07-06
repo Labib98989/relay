@@ -26,9 +26,12 @@ type RowKind = "class" | "break";
 type Row = { id: string; kind: RowKind; start: string; end: string; label?: string };
 type Day = { key: Weekday; label: string; weekend: boolean };
 type Placement = { rowId: string; dayKey: Weekday; courseId: string; slotId?: string };
+// A "room" override is any CHANGED exception this week: a new room, and/or a
+// one-off time move (startTime/endTime set, e.g. by the AI chat tools). The
+// grid keeps the tile in its permanent row and badges the move instead.
 type Override =
   | { rowId: string; dayKey: Weekday; kind: "cancel" }
-  | { rowId: string; dayKey: Weekday; kind: "room"; room: string };
+  | { rowId: string; dayKey: Weekday; kind: "room"; room: string; startTime?: string; endTime?: string };
 type Extra = { rowId: string; dayKey: Weekday; courseId: string; room?: string };
 
 // What a drag is carrying: a fresh course from the palette, or a placed tile
@@ -40,7 +43,7 @@ type DragPayload =
 // What the server sends down (and the editor reconstructs the grid from).
 type OverridePayload =
   | { kind: "cancel"; slotId: string }
-  | { kind: "room"; slotId: string; room?: string }
+  | { kind: "room"; slotId: string; room?: string; startTime?: string; endTime?: string }
   | { kind: "extra"; courseId: string; weekday: Weekday; startTime: string; endTime: string; room?: string }
   | { kind: "dayoff"; weekday: Weekday };
 
@@ -62,6 +65,9 @@ export type EditorActions = {
   setSlotTimes: (slotIds: string[], startTime: string, endTime: string) => Promise<void>;
   cancelThisWeek: (slotId: string) => Promise<void>;
   changeRoomThisWeek: (slotId: string, room: string) => Promise<void>;
+  // @relay-test-button — wired only for the week-mode test menu item; the AI
+  // tools are the real consumers of this action.
+  changeTimeThisWeek: (slotId: string, startTime: string, endTime: string, room?: string) => Promise<void>;
   clearThisWeek: (slotId: string) => Promise<void>;
   addExtraThisWeek: (courseId: string, weekday: Weekday, startTime: string, endTime: string, room: string) => Promise<{ id: string }>;
   clearExtraThisWeek: (weekday: Weekday, startTime: string) => Promise<void>;
@@ -174,7 +180,7 @@ function buildFromData(data: EditorData): Seed {
         overrides.push(
           o.kind === "cancel"
             ? { rowId, dayKey: s.weekday, kind: "cancel" }
-            : { rowId, dayKey: s.weekday, kind: "room", room: o.room ?? "" },
+            : { rowId, dayKey: s.weekday, kind: "room", room: o.room ?? "", startTime: o.startTime, endTime: o.endTime },
         );
     } else if (o.kind === "extra") {
       const rowId = rowOf(o.startTime, o.endTime);
@@ -222,12 +228,17 @@ export default function ScheduleEditor({
   spaceName,
   meta,
   hour12: hour12Prop = true,
+  lockMode,
   data,
   actions,
 }: {
   spaceName: string;
   meta?: string;
   hour12?: boolean;
+  // When set, the editor is pinned to one layer and the mode toggle is hidden —
+  // the sidebar sections split the two: Dashboard = "week", Weekly routine =
+  // "permanent". Unset (the /design sandbox) keeps the in-editor toggle.
+  lockMode?: "permanent" | "week";
   data?: EditorData;
   actions?: EditorActions;
 }) {
@@ -239,7 +250,7 @@ export default function ScheduleEditor({
   const [localHour12, setLocalHour12] = useState(hour12Prop);
   const hour12 = sandbox ? localHour12 : hour12Prop;
 
-  const [mode, setMode] = useState<"edit" | "week">("edit");
+  const [mode, setMode] = useState<"edit" | "week">(lockMode === "week" ? "week" : "edit");
   const [courses, setCourses] = useState(seed.courses);
   const [rows, setRows] = useState(seed.rows);
   const [days, setDays] = useState(seed.days);
@@ -414,13 +425,37 @@ export default function ScheduleEditor({
       setCourses((prev) => prev.map((x) => (x.id === course.id ? { ...x, room } : x)));
       if (actions) save(() => actions.updateCourse(course.id, { room }));
     } else {
-      setOverrides((prev) => [
-        ...prev.filter((o) => !(o.rowId === row.id && o.dayKey === day.key)),
-        { rowId: row.id, dayKey: day.key, kind: "room", room },
-      ]);
+      setOverrides((prev) => {
+        // Keep an existing time move on this cell — a room edit stacks on it,
+        // mirroring the server-side merge in replaceOverride.
+        const prior = prev.find((o) => o.rowId === row.id && o.dayKey === day.key);
+        const times = prior?.kind === "room" ? { startTime: prior.startTime, endTime: prior.endTime } : {};
+        return [
+          ...prev.filter((o) => !(o.rowId === row.id && o.dayKey === day.key)),
+          { rowId: row.id, dayKey: day.key, kind: "room", room, ...times },
+        ];
+      });
       const slotId = placementAt(row.id, day.key)?.slotId;
       if (actions && slotId) save(() => actions.changeRoomThisWeek(slotId, room));
     }
+    setSelected(null);
+  }
+
+  // @relay-test-button — temporary manual pipeline poke: moves this class's
+  // upcoming occurrence to 15:00–16:00 via changeTimeThisWeek so the CHANGED-
+  // with-time override, the "→ moved" badge, and the digest rendering can all
+  // be verified by hand. Grep this tag to remove.
+  function testMoveWeek(row: Row, day: Day) {
+    setOverrides((prev) => {
+      const prior = prev.find((o) => o.rowId === row.id && o.dayKey === day.key);
+      const room = prior?.kind === "room" ? prior.room : "";
+      return [
+        ...prev.filter((o) => !(o.rowId === row.id && o.dayKey === day.key)),
+        { rowId: row.id, dayKey: day.key, kind: "room", room, startTime: "15:00", endTime: "16:00" },
+      ];
+    });
+    const slotId = placementAt(row.id, day.key)?.slotId;
+    if (actions && slotId) save(() => actions.changeTimeThisWeek(slotId, "15:00", "16:00"));
     setSelected(null);
   }
 
@@ -523,22 +558,24 @@ export default function ScheduleEditor({
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex rounded-2xl border border-line bg-surface-2 p-1 text-sm font-semibold">
-            {(["edit", "week"] as const).map((m) => {
-              const active = mode === m;
-              const activeCls = m === "edit" ? "bg-brand text-on-brand" : "bg-mint text-on-brand";
-              return (
-                <button
-                  key={m}
-                  onClick={() => { setMode(m); setArmed(null); setSelected(null); setPicking(null); }}
-                  title={m === "edit" ? "Edit the permanent schedule" : "Make temporary, this-week-only changes"}
-                  className={"rounded-xl px-3.5 py-2 transition-all sm:py-1.5 " + (active ? `${activeCls} shadow-sm` : "text-ink-soft hover:text-ink")}
-                >
-                  {m === "edit" ? "Edit schedule" : "This week"}
-                </button>
-              );
-            })}
-          </div>
+          {!lockMode && (
+            <div className="flex rounded-2xl border border-line bg-surface-2 p-1 text-sm font-semibold">
+              {(["edit", "week"] as const).map((m) => {
+                const active = mode === m;
+                const activeCls = m === "edit" ? "bg-brand text-on-brand" : "bg-mint text-on-brand";
+                return (
+                  <button
+                    key={m}
+                    onClick={() => { setMode(m); setArmed(null); setSelected(null); setPicking(null); }}
+                    title={m === "edit" ? "Edit the permanent schedule" : "Make temporary, this-week-only changes"}
+                    className={"rounded-xl px-3.5 py-2 transition-all sm:py-1.5 " + (active ? `${activeCls} shadow-sm` : "text-ink-soft hover:text-ink")}
+                  >
+                    {m === "edit" ? "Edit schedule" : "This week"}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {sandbox && (
             <div className="flex rounded-2xl border border-line bg-surface-2 p-1 font-mono text-xs font-semibold" title="Time display format (saved per space on the real dashboard)">
               {([[true, "12h"], [false, "24h"]] as const).map(([val, label]) => (
@@ -731,6 +768,7 @@ export default function ScheduleEditor({
                       <GridCell
                         weekend={day.weekend}
                         dayOff={dayOff}
+                        hour12={hour12}
                         course={course}
                         override={ov}
                         extraCourse={extraCourse}
@@ -751,6 +789,7 @@ export default function ScheduleEditor({
                           onRemove={() => { removePlacement(row.id, day.key); setSelected(null); }}
                           onRoom={(room) => setRoom(row, day, course, room)}
                           onCancel={() => cancelWeek(row, day)}
+                          onTestMove={() => testMoveWeek(row, day)}
                           onClose={() => setSelected(null)}
                         />
                       )}
@@ -845,11 +884,12 @@ function TimeCell({
 }
 
 function GridCell({
-  weekend, dayOff, course, override, extraCourse, extraRoom, drop,
+  weekend, dayOff, hour12, course, override, extraCourse, extraRoom, drop,
   draggableTile, onTileDragStart, onTileDragEnd, onClick,
 }: {
   weekend: boolean;
   dayOff: boolean;
+  hour12: boolean;
   course?: Course;
   override?: Override;
   extraCourse?: Course;
@@ -864,6 +904,11 @@ function GridCell({
 
   const cancelled = override?.kind === "cancel";
   const roomChanged = override?.kind === "room";
+  // A CHANGED override that moved the occurrence to a new time band this week.
+  const movedTo =
+    override?.kind === "room" && override.startTime && override.endTime
+      ? `${formatTime(override.startTime, hour12)}–${formatTime(override.endTime, hour12)}`
+      : null;
   const dragProps = draggableTile
     ? {
         draggable: true,
@@ -876,7 +921,7 @@ function GridCell({
   // permanent class
   if (course) {
     const dimmed = dayOff || cancelled;
-    const badge = dayOff ? "day off" : cancelled ? "off" : roomChanged ? "changed" : null;
+    const badge = dayOff ? "day off" : cancelled ? "off" : movedTo ? `→ ${movedTo}` : roomChanged ? "changed" : null;
     return (
       // `key` flips with `drop` so a freshly placed tile remounts and plays the snap.
       <button key={drop ? "snap" : "rest"} {...dragProps} onClick={(e) => onClick(e.currentTarget.getBoundingClientRect())} className={"tile min-h-[3.25rem] w-full px-2 py-1.5 text-left " + grab + (drop ? "animate-drop-in " : "") + (dimmed ? "opacity-50 saturate-50" : "")} style={{ background: course.color }}>
@@ -884,7 +929,7 @@ function GridCell({
           <span className={"truncate text-xs font-bold " + (dimmed ? "line-through" : "")}>{course.name}</span>
           {badge && <span className="shrink-0 rounded-full bg-white/25 px-1 text-[9px] font-semibold">{badge}</span>}
         </div>
-        <div className="mt-0.5 truncate text-[10px] text-white/85">{roomChanged ? override.room : course.room}</div>
+        <div className="mt-0.5 truncate text-[10px] text-white/85">{roomChanged ? override.room || course.room : course.room}</div>
       </button>
     );
   }
@@ -915,7 +960,7 @@ function GridCell({
 }
 
 function CellMenu({
-  mode, course, override, anchor, onMove, onRemove, onRoom, onCancel, onClose,
+  mode, course, override, anchor, onMove, onRemove, onRoom, onCancel, onTestMove, onClose,
 }: {
   mode: "edit" | "week";
   course: Course;
@@ -925,6 +970,8 @@ function CellMenu({
   onRemove: () => void;
   onRoom: (room: string) => void;
   onCancel: () => void;
+  // @relay-test-button — temporary manual pipeline poke; grep tag to remove.
+  onTestMove: () => void;
   onClose: () => void;
 }) {
   const [room, setRoom] = useState(override?.kind === "room" ? override.room : course.room);
@@ -937,7 +984,11 @@ function CellMenu({
           <MenuItem onClick={onRemove} danger>Remove from schedule</MenuItem>
         </>
       ) : (
-        <MenuItem onClick={onCancel} danger>Cancel this week</MenuItem>
+        <>
+          <MenuItem onClick={onCancel} danger>Cancel this week</MenuItem>
+          {/* @relay-test-button — temporary manual pipeline poke; grep tag to remove. */}
+          <MenuItem onClick={onTestMove}>test: move to 15:00–16:00</MenuItem>
+        </>
       )}
       <div className="mt-1 flex gap-1.5 border-t border-line pt-2">
         <input value={room} onChange={(e) => setRoom(e.target.value)} placeholder="Room" className="w-full rounded-lg border border-line bg-surface px-2 py-2 text-sm text-ink outline-none focus:border-brand sm:py-1 sm:text-xs" />

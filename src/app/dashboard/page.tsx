@@ -46,6 +46,12 @@ export default async function Dashboard() {
                 {session.user.name}
               </span>
             </div>
+            <Link
+              href="/dashboard/account"
+              className="rounded-lg px-2 py-1 font-mono text-xs text-ink-faint transition-colors hover:text-brand"
+            >
+              AI access
+            </Link>
             <form
               action={async () => {
                 "use server";

@@ -1,155 +1,130 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { OverrideType } from "@/generated/prisma/enums";
 import { weekWindowUTC6, weekdayFromDate, tomorrowUTC6 } from "@/lib/week";
 import { resolveDay } from "@/lib/resolve";
-import { sanitizeLayout } from "@/lib/layout";
-import type { EditorData } from "@/components/ScheduleEditor";
-import SpaceWorkspace from "@/components/SpaceWorkspace";
-import {
-  addCourse,
-  updateCourse,
-  deleteCourse,
-  placeSlot,
-  removeSlot,
-  setSlotTimes,
-  cancelThisWeek,
-  changeRoomThisWeek,
-  clearThisWeek,
-  addExtraThisWeek,
-  clearExtraThisWeek,
-  setDayOff,
-  clearDayOff,
-  updateLayout,
-  updateSpaceSettings,
-  postTomorrowNow,
-} from "./actions";
+import { formatTime } from "@/lib/time";
+import { categoryMeta } from "@/lib/categories";
+import ScheduleEditor from "@/components/ScheduleEditor";
+import TomorrowPreview from "@/components/TomorrowPreview";
+import { loadEditorData, editorActions } from "./editorData";
 
-export default async function SpacePage({
+// The Dashboard section: the day-to-day operational view — tomorrow's post, a
+// glance at upcoming events, and the "This week" temporary editor. The permanent
+// weekly grid lives in the Weekly routine section.
+export default async function DashboardSection({
   params,
 }: {
   params: Promise<{ spaceId: string }>;
 }) {
   const session = await auth();
-  if (!session) {
-    redirect("/");
-  }
-
-  // `params` is a Promise in this version of Next.js — it must be awaited.
+  if (!session) redirect("/");
   const { spaceId } = await params;
 
-  // Ownership is enforced in the query: another CR's space id finds nothing.
   const space = await prisma.scheduleSpace.findFirst({
     where: { id: spaceId, ownerId: session.user.id },
   });
-  if (!space) {
-    notFound();
-  }
+  if (!space) notFound();
 
-  // Load the permanent layer (courses + slots) and the active this-week overrides.
-  const { start, end } = weekWindowUTC6();
-  const [courses, slots, overrides] = await Promise.all([
-    prisma.course.findMany({ where: { spaceId }, orderBy: { name: "asc" } }),
-    prisma.scheduleSlot.findMany({ where: { spaceId } }),
-    prisma.override.findMany({
-      where: { spaceId, date: { gte: start, lte: end } },
-    }),
-  ]);
+  const data = await loadEditorData(spaceId, space.layout);
+  const actions = editorActions(spaceId);
 
-  const data = {
-    layout: sanitizeLayout(space.layout),
-    courses: courses.map((c) => ({
-      id: c.id,
-      name: c.name,
-      room: c.room ?? "",
-      color: c.color,
-    })),
-    slots: slots.map((s) => ({
-      id: s.id,
-      courseId: s.courseId,
-      weekday: s.weekday,
-      startTime: s.startTime,
-      endTime: s.endTime,
-    })),
-    overrides: overrides.flatMap((o): EditorData["overrides"] => {
-      if (o.type === OverrideType.CANCELLED && o.slotId)
-        return [{ kind: "cancel" as const, slotId: o.slotId }];
-      if (o.type === OverrideType.CHANGED && o.slotId)
-        return [{ kind: "room" as const, slotId: o.slotId, room: o.room ?? undefined }];
-      if (o.type === OverrideType.EXTRA && o.courseId && o.startTime && o.endTime)
-        return [{
-          kind: "extra" as const,
-          courseId: o.courseId,
-          weekday: weekdayFromDate(o.date),
-          startTime: o.startTime,
-          endTime: o.endTime,
-          room: o.room ?? undefined,
-        }];
-      if (o.type === OverrideType.DAY_OFF)
-        return [{ kind: "dayoff" as const, weekday: weekdayFromDate(o.date) }];
-      return [];
-    }),
-  };
-
-  // Resolve what the bot will post tomorrow (permanent schedule + tomorrow's
-  // overrides) for the read-only preview.
   const tomorrow = tomorrowUTC6();
   const tomorrowWeekday = weekdayFromDate(tomorrow);
-  const [tmrSlots, tmrOverrides] = await Promise.all([
-    prisma.scheduleSlot.findMany({
-      where: { spaceId, weekday: tomorrowWeekday },
-      include: { course: true },
-    }),
-    prisma.override.findMany({
+  const { start, end } = weekWindowUTC6();
+  const [tmrSlots, tmrOverrides, tmrEvents, upcoming] = await Promise.all([
+    prisma.scheduleSlot.findMany({ where: { spaceId, weekday: tomorrowWeekday }, include: { course: true } }),
+    prisma.override.findMany({ where: { spaceId, date: tomorrow }, include: { course: true } }),
+    prisma.event.findMany({
       where: { spaceId, date: tomorrow },
-      include: { course: true },
+      select: { title: true, category: true, startTime: true, endTime: true },
+      orderBy: { startTime: "asc" },
+    }),
+    prisma.event.findMany({
+      where: { spaceId, date: { gte: start, lte: end } },
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
     }),
   ]);
-  const resolved = resolveDay(tomorrow, tmrSlots, tmrOverrides);
-  const dateLabel = tomorrow.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
 
-  // Space-scoped Server Actions handed to the (client) editor as props.
-  const actions = {
-    addCourse: addCourse.bind(null, space.id),
-    updateCourse,
-    deleteCourse,
-    placeSlot: placeSlot.bind(null, space.id),
-    removeSlot,
-    setSlotTimes,
-    cancelThisWeek,
-    changeRoomThisWeek,
-    clearThisWeek,
-    addExtraThisWeek: addExtraThisWeek.bind(null, space.id),
-    clearExtraThisWeek: clearExtraThisWeek.bind(null, space.id),
-    setDayOff: setDayOff.bind(null, space.id),
-    clearDayOff: clearDayOff.bind(null, space.id),
-    updateLayout: updateLayout.bind(null, space.id),
-  };
+  const resolved = resolveDay(tomorrow, tmrSlots, tmrOverrides);
+  const dateLabel = tomorrow.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
+  const connected = !!space.discordChannelId;
+  const meta = connected
+    ? `posts to Discord nightly at ${formatTime(space.postTime, space.hour12)}`
+    : "channel not connected yet";
 
   return (
-    <SpaceWorkspace
-      spaceName={space.name}
-      connected={!!space.discordChannelId}
-      resolved={resolved}
-      dateLabel={dateLabel}
-      initial={{
-        postTime: space.postTime,
-        hour12: space.hour12,
-        channelId: space.discordChannelId ?? "",
-        notificationsEnabled: space.notificationsEnabled,
-      }}
-      data={data}
-      postingActions={{
-        updateSettings: updateSpaceSettings.bind(null, space.id),
-        postNow: postTomorrowNow.bind(null, space.id),
-      }}
-      editorActions={actions}
-    />
+    <>
+      <div className="mx-auto grid w-full max-w-5xl gap-4 px-4 pt-8 sm:px-6 md:grid-cols-2">
+        <TomorrowPreview
+          resolved={resolved}
+          dateLabel={dateLabel}
+          postTime={space.postTime}
+          connected={connected}
+          hour12={space.hour12}
+          events={tmrEvents}
+        />
+        <UpcomingEvents events={upcoming} hour12={space.hour12} spaceId={spaceId} />
+      </div>
+
+      <ScheduleEditor
+        spaceName={space.name}
+        meta={meta}
+        hour12={space.hour12}
+        lockMode="week"
+        data={data}
+        actions={actions}
+      />
+    </>
+  );
+}
+
+function UpcomingEvents({
+  events,
+  hour12,
+  spaceId,
+}: {
+  events: { id: string; title: string; date: Date; category: import("@/generated/prisma/enums").EventCategory; startTime: string | null }[];
+  hour12: boolean;
+  spaceId: string;
+}) {
+  return (
+    <section className="panel overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+        <div>
+          <div className="font-mono text-[11px] uppercase tracking-wider text-ink-faint">next 7 days</div>
+          <h2 className="font-display text-lg font-bold text-ink">Upcoming events</h2>
+        </div>
+        <a href={`/dashboard/${spaceId}/calendar`} className="font-mono text-[11px] text-ink-soft transition-colors hover:text-brand">
+          calendar →
+        </a>
+      </div>
+      <div className="p-5">
+        {events.length === 0 ? (
+          <div className="flex flex-col items-center gap-1 py-4 text-center">
+            <span className="text-2xl">🗓️</span>
+            <p className="font-semibold text-ink">Nothing coming up.</p>
+            <p className="text-sm text-ink-soft">Add exams and deadlines in Calendar &amp; events.</p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {events.map((e) => {
+              const meta = categoryMeta(e.category);
+              const label = e.date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" });
+              return (
+                <li key={e.id} className="flex items-center gap-3">
+                  <span className="w-20 shrink-0 font-mono text-xs text-ink-faint">{label}</span>
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: meta.color }} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{e.title}</span>
+                  <span className="shrink-0 font-mono text-[11px] text-ink-faint">
+                    {e.startTime ? formatTime(e.startTime, hour12) : meta.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }
